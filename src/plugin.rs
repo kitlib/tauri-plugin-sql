@@ -171,7 +171,45 @@ async fn load<R: Runtime>(
         migrator.run(&pool).await?;
     }
 
-    db_instances.0.lock().await.insert(db.clone(), pool);
+    let mut instances = db_instances.0.lock().await;
+    if instances.contains_key(&db) {
+        return Ok(db)
+    }
+    instances.insert(db.clone(), pool);
+    Ok(db)
+}
+
+#[command]
+async fn reload<R: Runtime>(
+    #[allow(unused_variables)] app: AppHandle<R>,
+    db_instances: State<'_, DbInstances>,
+    migrations: State<'_, Migrations>,
+    db: String,
+) -> Result<String> {
+    #[cfg(feature = "sqlite")]
+    let fqdb = path_mapper(app_path(&app), &db);
+    #[cfg(not(feature = "sqlite"))]
+    let fqdb = db.clone();
+
+    #[cfg(feature = "sqlite")]
+    create_dir_all(app_path(&app)).expect("Problem creating App directory!");
+
+    let mut instances = db_instances.0.lock().await;
+    if let Some(pool) = instances.remove(&db) {
+        pool.close().await;
+    }
+
+    if !Db::database_exists(&fqdb).await.unwrap_or(false) {
+        Db::create_database(&fqdb).await?;
+    }
+    let pool = Pool::connect(&fqdb).await?;
+
+    if let Some(migrations) = migrations.0.lock().await.remove(&db) {
+        let migrator = Migrator::new(migrations).await?;
+        migrator.run(&pool).await?;
+    }
+
+    instances.insert(db.clone(), pool);
     Ok(db)
 }
 
@@ -190,8 +228,8 @@ async fn close(db_instances: State<'_, DbInstances>, db: Option<String>) -> Resu
 
     for pool in pools {
         let db = instances
-            .get_mut(&pool) //
-            .ok_or(Error::DatabaseNotLoaded(pool))?;
+            .remove(&pool) //
+            .ok_or(Error::DatabaseNotLoaded(pool.clone()))?;
         db.close().await;
     }
 
@@ -284,7 +322,7 @@ impl Builder {
 
     pub fn build<R: Runtime>(mut self) -> TauriPlugin<R, Option<PluginConfig>> {
         PluginBuilder::new("sql")
-            .invoke_handler(tauri::generate_handler![load, execute, select, close])
+            .invoke_handler(tauri::generate_handler![load, reload, execute, select, close])
             .setup_with_config(|app, config: Option<PluginConfig>| {
                 let config = config.unwrap_or_default();
 

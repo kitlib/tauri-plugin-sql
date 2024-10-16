@@ -50,6 +50,29 @@ export default class Database {
   }
 
   /**
+   * **reload**
+   *
+   * A static initializer which connects to the underlying database and
+   * returns a `Database` instance once a connection to the database is established.
+   *
+   * # Sqlite
+   *
+   * The path is relative to `tauri::api::path::BaseDirectory::App` and must start with `sqlite:`.
+   *
+   * @example
+   * ```ts
+   * const db = await Database.reload("sqlite:test.db");
+   * ```
+   */
+  static async reload(path: string): Promise<Database> {
+    const _path = await invoke<string>("plugin:sql|reload", {
+      db: path,
+    });
+
+    return new Database(_path);
+  }
+
+  /**
    * **get**
    *
    * A static initializer which synchronously returns an instance of
