@@ -12,11 +12,7 @@ use sqlx::{
     },
     Column, Pool, Row,
 };
-use tauri::{
-    command,
-    plugin::{Builder as PluginBuilder, TauriPlugin},
-    AppHandle, Manager, RunEvent, Runtime, State,
-};
+use tauri::{command, plugin::{Builder as PluginBuilder, TauriPlugin}, AppHandle, Manager, RunEvent, Runtime, State};
 use tokio::sync::Mutex;
 
 use std::collections::HashMap;
@@ -152,14 +148,16 @@ async fn load<R: Runtime>(
     db_instances: State<'_, DbInstances>,
     migrations: State<'_, Migrations>,
     db: String,
+    dir: Option<String>,
 ) -> Result<String> {
+    let path = dir.map_or_else(|| app_path(&app), |d| PathBuf::from(d));
     #[cfg(feature = "sqlite")]
-    let fqdb = path_mapper(app_path(&app), &db);
+    let fqdb = path_mapper(path.clone(), &db);
     #[cfg(not(feature = "sqlite"))]
     let fqdb = db.clone();
 
     #[cfg(feature = "sqlite")]
-    create_dir_all(app_path(&app)).expect("Problem creating App directory!");
+    create_dir_all(path.clone()).expect("Problem creating App directory!");
 
     if !Db::database_exists(&fqdb).await.unwrap_or(false) {
         Db::create_database(&fqdb).await?;
@@ -173,7 +171,7 @@ async fn load<R: Runtime>(
 
     let mut instances = db_instances.0.lock().await;
     if instances.contains_key(&db) {
-        return Ok(db)
+        return Ok(db);
     }
     instances.insert(db.clone(), pool);
     Ok(db)
@@ -185,14 +183,16 @@ async fn reload<R: Runtime>(
     db_instances: State<'_, DbInstances>,
     migrations: State<'_, Migrations>,
     db: String,
+    dir: Option<String>,
 ) -> Result<String> {
+    let path = dir.map_or_else(|| app_path(&app), |d| PathBuf::from(d));
     #[cfg(feature = "sqlite")]
-    let fqdb = path_mapper(app_path(&app), &db);
+    let fqdb = path_mapper(path.clone(), &db);
     #[cfg(not(feature = "sqlite"))]
     let fqdb = db.clone();
 
     #[cfg(feature = "sqlite")]
-    create_dir_all(app_path(&app)).expect("Problem creating App directory!");
+    create_dir_all(path.clone()).expect("Problem creating App directory!");
 
     let mut instances = db_instances.0.lock().await;
     if let Some(pool) = instances.remove(&db) {
@@ -320,21 +320,25 @@ impl Builder {
         self
     }
 
-    pub fn build<R: Runtime>(mut self) -> TauriPlugin<R, Option<PluginConfig>> {
+    pub fn build<R: Runtime, F>(mut self, mut path_resolver: F) -> TauriPlugin<R, Option<PluginConfig>>
+    where
+        F: FnMut(&AppHandle<R>) -> PathBuf + Sync + Send + 'static,
+    {
         PluginBuilder::new("sql")
             .invoke_handler(tauri::generate_handler![load, reload, execute, select, close])
-            .setup_with_config(|app, config: Option<PluginConfig>| {
+            .setup_with_config(move |app, config: Option<PluginConfig>| {
                 let config = config.unwrap_or_default();
+                let path = path_resolver(app);
 
                 #[cfg(feature = "sqlite")]
-                create_dir_all(app_path(app)).expect("problems creating App directory!");
+                create_dir_all(path.clone()).expect("problems creating App directory!");
 
                 tauri::async_runtime::block_on(async move {
                     let instances = DbInstances::default();
                     let mut lock = instances.0.lock().await;
                     for db in config.preload {
                         #[cfg(feature = "sqlite")]
-                        let fqdb = path_mapper(app_path(app), &db);
+                        let fqdb = path_mapper(path.clone(), &db);
                         #[cfg(not(feature = "sqlite"))]
                         let fqdb = db.clone();
 
