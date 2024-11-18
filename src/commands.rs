@@ -23,7 +23,39 @@ pub(crate) async fn load<R: Runtime>(
         pool.migrate(&migrator).await?;
     }
 
-    db_instances.0.write().await.insert(db.clone(), pool);
+    let mut instances = db_instances.0.write().await;
+    if instances.contains_key(&db) {
+        return Ok(db)
+    }
+    instances.insert(db.clone(), pool);
+
+    Ok(db)
+}
+
+#[command]
+pub(crate) async fn reload<R: Runtime>(
+    app: AppHandle<R>,
+    db_instances: State<'_, DbInstances>,
+    migrations: State<'_, Migrations>,
+    db: String,
+) -> Result<String, crate::Error> {
+    let mut instances = db_instances.0.write().await;
+
+    if let Some(pool) = instances.remove(&db) {
+        pool.close().await;
+    }
+
+    let pool = DbPool::connect(&db, &app).await?;
+
+    if let Some(migrations) = migrations.0.lock().await.remove(&db) {
+        let migrator = Migrator::new(migrations).await?;
+        pool.migrate(&migrator).await?;
+    }
+
+    if instances.contains_key(&db) {
+        return Ok(db)
+    }
+    instances.insert(db.clone(), pool);
 
     Ok(db)
 }
@@ -36,7 +68,7 @@ pub(crate) async fn close(
     db_instances: State<'_, DbInstances>,
     db: Option<String>,
 ) -> Result<bool, crate::Error> {
-    let instances = db_instances.0.read().await;
+    let mut instances = db_instances.0.write().await;
 
     let pools = if let Some(db) = db {
         vec![db]
@@ -45,7 +77,7 @@ pub(crate) async fn close(
     };
 
     for pool in pools {
-        let db = instances.get(&pool).ok_or(Error::DatabaseNotLoaded(pool))?;
+        let db = instances.remove(&pool).ok_or(Error::DatabaseNotLoaded(pool))?;
         db.close().await;
     }
 

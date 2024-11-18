@@ -108,6 +108,32 @@ Denies the load command without any pre-configured scope.
 <tr>
 <td>
 
+`sql:allow-reload`
+
+</td>
+<td>
+
+Enables the reload command without any pre-configured scope.
+
+</td>
+</tr>
+
+<tr>
+<td>
+
+`sql:deny-reload`
+
+</td>
+<td>
+
+Denies the reload command without any pre-configured scope.
+
+</td>
+</tr>
+
+<tr>
+<td>
+
 `sql:allow-select`
 
 </td>

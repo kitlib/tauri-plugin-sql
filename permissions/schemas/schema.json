@@ -331,6 +331,16 @@
           "markdownDescription": "Denies the load command without any pre-configured scope."
         },
         {
+          "description": "Enables the reload command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-reload"
+        },
+        {
+          "description": "Denies the reload command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-reload"
+        },
+        {
           "description": "Enables the select command without any pre-configured scope.",
           "type": "string",
           "const": "allow-select",

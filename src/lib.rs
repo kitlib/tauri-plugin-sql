@@ -138,6 +138,7 @@ impl Builder {
         PluginBuilder::<R, Option<PluginConfig>>::new("sql")
             .invoke_handler(tauri::generate_handler![
                 commands::load,
+                commands::reload,
                 commands::execute,
                 commands::select,
                 commands::close
