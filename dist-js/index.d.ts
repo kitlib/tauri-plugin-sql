@@ -35,7 +35,7 @@ export default class Database {
      * const db = await Database.load("sqlite:test.db");
      * ```
      */
-    static load(path: string): Promise<Database>;
+    static load(path: string, dir?: string): Promise<Database>;
     /**
      * **reload**
      *
@@ -51,7 +51,7 @@ export default class Database {
      * const db = await Database.reload("sqlite:test.db");
      * ```
      */
-    static reload(path: string): Promise<Database>;
+    static reload(path: string, dir?: string): Promise<Database>;
     /**
      * **get**
      *

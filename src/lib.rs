@@ -23,13 +23,11 @@ use sqlx::{
     error::BoxDynError,
     migrate::{Migration as SqlxMigration, MigrationSource, MigrationType, Migrator},
 };
-use tauri::{
-    plugin::{Builder as PluginBuilder, TauriPlugin},
-    Manager, RunEvent, Runtime,
-};
+use tauri::{plugin::{Builder as PluginBuilder, TauriPlugin}, AppHandle, Manager, RunEvent, Runtime};
 use tokio::sync::{Mutex, RwLock};
 
 use std::collections::HashMap;
+use std::path::PathBuf;
 
 #[derive(Default)]
 pub struct DbInstances(pub RwLock<HashMap<String, DbPool>>);
@@ -134,7 +132,10 @@ impl Builder {
         self
     }
 
-    pub fn build<R: Runtime>(mut self) -> TauriPlugin<R, Option<PluginConfig>> {
+    pub fn build<R: Runtime, F>(mut self, mut path_resolver: F) -> TauriPlugin<R, Option<PluginConfig>>
+    where
+        F: FnMut(&AppHandle<R>) -> PathBuf + Sync + Send + 'static,
+    {
         PluginBuilder::<R, Option<PluginConfig>>::new("sql")
             .invoke_handler(tauri::generate_handler![
                 commands::load,
@@ -143,15 +144,16 @@ impl Builder {
                 commands::select,
                 commands::close
             ])
-            .setup(|app, api| {
+            .setup(move |app, api| {
                 let config = api.config().clone().unwrap_or_default();
+                let path = path_resolver(app);
 
                 run_async_command(async move {
                     let instances = DbInstances::default();
                     let mut lock = instances.0.write().await;
 
                     for db in config.preload {
-                        let pool = DbPool::connect(&db, app).await?;
+                        let pool = DbPool::connect(&db, app, Some(path.clone())).await?;
 
                         if let Some(migrations) =
                             self.migrations.as_mut().and_then(|mm| mm.remove(&db))

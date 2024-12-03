@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-License-Identifier: MIT
 
+use std::path::PathBuf;
 use indexmap::IndexMap;
 use serde_json::Value as JsonValue;
 use sqlx::migrate::Migrator;
@@ -15,8 +16,10 @@ pub(crate) async fn load<R: Runtime>(
     db_instances: State<'_, DbInstances>,
     migrations: State<'_, Migrations>,
     db: String,
+    dir: Option<String>,
 ) -> Result<String, crate::Error> {
-    let pool = DbPool::connect(&db, &app).await?;
+    let path = dir.map(|d| PathBuf::from(d));
+    let pool = DbPool::connect(&db, &app, path).await?;
 
     if let Some(migrations) = migrations.0.lock().await.remove(&db) {
         let migrator = Migrator::new(migrations).await?;
@@ -38,6 +41,7 @@ pub(crate) async fn reload<R: Runtime>(
     db_instances: State<'_, DbInstances>,
     migrations: State<'_, Migrations>,
     db: String,
+    dir: Option<String>,
 ) -> Result<String, crate::Error> {
     let mut instances = db_instances.0.write().await;
 
@@ -45,7 +49,8 @@ pub(crate) async fn reload<R: Runtime>(
         pool.close().await;
     }
 
-    let pool = DbPool::connect(&db, &app).await?;
+    let path = dir.map(|d| PathBuf::from(d));
+    let pool = DbPool::connect(&db, &app, path).await?;
 
     if let Some(migrations) = migrations.0.lock().await.remove(&db) {
         let migrator = Migrator::new(migrations).await?;

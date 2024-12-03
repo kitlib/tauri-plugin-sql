@@ -28,9 +28,10 @@ class Database {
      * const db = await Database.load("sqlite:test.db");
      * ```
      */
-    static async load(path) {
+    static async load(path, dir) {
         const _path = await invoke('plugin:sql|load', {
-            db: path
+            db: path,
+            dir,
         });
         return new Database(_path);
     }
@@ -49,9 +50,10 @@ class Database {
      * const db = await Database.reload("sqlite:test.db");
      * ```
      */
-    static async reload(path) {
+    static async reload(path, dir) {
         const _path = await invoke("plugin:sql|reload", {
-            db: path
+            db: path,
+            dir,
         });
         return new Database(_path);
     }

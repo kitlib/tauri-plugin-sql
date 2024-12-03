@@ -4,7 +4,7 @@
 
 #[cfg(feature = "sqlite")]
 use std::fs::create_dir_all;
-
+use std::path::PathBuf;
 use indexmap::IndexMap;
 use serde_json::Value as JsonValue;
 #[cfg(any(feature = "sqlite", feature = "mysql", feature = "postgres"))]
@@ -68,6 +68,7 @@ impl DbPool {
     pub(crate) async fn connect<R: Runtime>(
         conn_url: &str,
         _app: &AppHandle<R>,
+        _path: Option<PathBuf>
     ) -> Result<Self, crate::Error> {
         match conn_url
             .split_once(':')
@@ -76,10 +77,10 @@ impl DbPool {
         {
             #[cfg(feature = "sqlite")]
             "sqlite" => {
-                let app_path = _app
+                let app_path = _path.unwrap_or_else(|| _app
                     .path()
                     .app_config_dir()
-                    .expect("No App config path was found!");
+                    .expect("No App config path was found!"));
 
                 create_dir_all(&app_path).expect("Couldn't create app config dir");
 

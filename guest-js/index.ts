@@ -45,9 +45,10 @@ export default class Database {
    * const db = await Database.load("sqlite:test.db");
    * ```
    */
-  static async load(path: string): Promise<Database> {
+  static async load(path: string, dir?: string): Promise<Database> {
     const _path = await invoke<string>('plugin:sql|load', {
-      db: path
+      db: path,
+      dir,
     })
 
     return new Database(_path)
@@ -68,9 +69,10 @@ export default class Database {
    * const db = await Database.reload("sqlite:test.db");
    * ```
    */
-  static async reload(path: string): Promise<Database> {
+  static async reload(path: string, dir?: string): Promise<Database> {
     const _path = await invoke<string>("plugin:sql|reload", {
-      db: path
+      db: path,
+      dir,
     })
 
     return new Database(_path)
